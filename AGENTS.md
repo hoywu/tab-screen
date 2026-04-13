@@ -24,7 +24,26 @@
 
 ## Commits
 - After finishing each atomic module, create a git commit before starting the next module.
-- Commit messages must follow Conventional Commits 1.0.0: https://www.conventionalcommits.org/en/v1.0.0/
+- Commit messages must follow Conventional Commits 1.0.0. The commit message format is:
+
+  ```text
+  <type>[optional scope]: <description>
+
+  [optional body]
+
+  [optional footer(s)]
+  ```
+
+  Requirements:
+  - `type` is required, followed by an optional scope, an optional `!`, and a required `: `.
+  - Use `feat` when a commit adds a new feature.
+  - Use `fix` when a commit fixes a bug.
+  - A scope may be added in parentheses after the type, for example `feat(parser): add array parsing`.
+  - The description must immediately follow the prefix and be a short summary of the change.
+  - A longer body may be added after one blank line.
+  - One or more footers may be added after one blank line following the body.
+  - Breaking changes must be indicated either by adding `!` before `:` in the prefix, or by a footer starting with `BREAKING CHANGE:`.
+  - Types other than `feat` and `fix` are allowed when appropriate, such as `docs`, `refactor`, `test`, `chore`, `ci`, `build`, `perf`, and similar project-appropriate types.
 - Before ending any task that has been completed successfully, create a git commit for the finished work, verify the working tree is clean, and only then stop; this applies to all kinds of changes, including code and documentation updates.
 
 ## Current Baseline Constraints

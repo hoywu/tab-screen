@@ -25,9 +25,9 @@
 **当前快照**
 
 - 当前阶段: `Phase 0 / pre-implementation`
-- 总体状态: 仅完成产品与工程文档，代码尚未开始落地
-- 最新可用文档: `docs/prd.md`、`docs/architecture.md`、`docs/implementation-roadmap.md`
-- 建议下一步: 从 `Phase 0` 开始搭建 Rust workspace、Flutter App 骨架和协议/配置 crate
+- 总体状态: 已完成产品/架构/路线图文档，并新增仓库级 `AGENTS.md` 作为后续 Agent 的执行约束；代码仍未开始落地
+- 最新可用文档: `docs/prd.md`、`docs/architecture.md`、`docs/implementation-roadmap.md`、`AGENTS.md`
+- 建议下一步: 从 `Phase 0` 开始搭建 Rust workspace、Flutter App 骨架和协议/配置 crate，并在每个原子模块完成后同步更新本文件与提交 Conventional Commit
 
 **模块状态总表**
 
@@ -36,6 +36,7 @@
 | 文档基线 `prd` | done | 已完成 | 产品需求已定义 | 作为验收依据保留 |
 | 文档基线 `architecture` | done | 已完成 | MVP 架构、接口、协议和状态机已定义 | 编码时按此为默认基线 |
 | 文档基线 `implementation-roadmap` | done | 已完成 | 阶段、门槛和任务顺序已定义 | 按阶段推进 |
+| 仓库级 `AGENTS.md` | done | OpenCode | 已落地仓库级执行约束，明确先读 `docs/`、及时更新状态文档、每个原子模块完成后提交 Conventional Commit | 后续实现严格遵守 |
 | Rust workspace | not_started | 待定 | 目录和 Cargo workspace 尚未建立 | 创建 `crates/` 和根 `Cargo.toml` |
 | `crates/protocol` | not_started | 待定 | 协议模型未编码 | 先定义消息、错误码、基础类型 |
 | `crates/config` | not_started | 待定 | 配置模型未编码 | 先定义 TOML 模型和默认值 |
@@ -57,6 +58,7 @@
 2. 完成 `docs/architecture.md` 的系统架构设计。
 3. 完成 `docs/implementation-roadmap.md` 的分阶段路线图。
 4. 明确了 MVP 默认技术路线，包括 Rust workspace + Flutter Android、单会话模型、WebSocket 单连接承载控制与媒体、`H.264` 为 MVP 必达媒体格式，以及显示参数与串流参数两阶段决策。
+5. 新增仓库根 `AGENTS.md`，将后续 Agent 的起手阅读顺序、阶段推进顺序、状态文档维护要求和提交规范固定为仓库约束。
 
 **当前未开始但已确定的实现基线**
 
@@ -74,6 +76,7 @@
 2. Wayland 虚拟显示器是否支持按连接创建/销毁仍未实测。
 3. 稳定命名能力是否由后端原生提供仍未确认。
 4. Rust 编码链路到 Android `MediaCodec` 的 Annex B 兼容性仍未实测。
+5. 仓库仍无可执行工程文件，因此任何构建、测试、lint、运行命令目前都不能假设存在。
 
 只要上述任一项存疑，就不应跳到复杂 UI 或增强特性。
 
@@ -93,6 +96,7 @@
 1. 创建 Rust workspace 和 `crates/` 骨架。
 2. 创建 Flutter Android App 骨架。
 3. 为 `display-backend` 写出 `DisplayBackend` 抽象和最小 `probe` 骨架。
+4. 每完成一个原子模块，同步更新本文件并创建一条符合 Conventional Commits 1.0.0 的提交。
 
 **模块完成后必须更新的字段**
 
@@ -116,6 +120,7 @@
 | 日期 | 变更人 | 内容 |
 | --- | --- | --- |
 | 2026-04-13 | OpenCode | 初始化实现状态文档，记录当前仍处于文档完成、代码未启动状态 |
+| 2026-04-14 | OpenCode | 新增根级 `AGENTS.md`，并同步记录后续 Agent 必须先读 `docs/`、及时更新状态文档、每个原子模块完成后提交 Conventional Commit 的仓库约束 |
 
 **更新模板**
 

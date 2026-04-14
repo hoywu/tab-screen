@@ -1,6 +1,16 @@
 [package]
-name = "app-cli"
-version = "0.1.0"
-edition = "2024"
+name = "tab-screen"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
+anyhow.workspace = true
+clap.workspace = true
+config = { path = "../config" }
+protocol = { path = "../protocol" }
+server-core = { path = "../server-core" }
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+transport = { path = "../transport" }

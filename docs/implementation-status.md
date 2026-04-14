@@ -26,7 +26,7 @@
 **当前快照**
 
 - 当前阶段: `Phase 0 / in_progress`
-- 总体状态: 已开始 Phase 0 落地，Rust workspace 根配置、`crates/` 目录骨架与各模块实现计划文件已创建；协议、配置、CLI 和 Flutter 壳体仍在继续实现中
+- 总体状态: Phase 0 持续推进中；Rust workspace、协议/配置/核心接口/CLI 骨架已落地并通过 `cargo check` 与关键单元测试，Flutter Android 壳体已生成并进入验证收尾
 - 最新可用文档: `docs/prd.md`、`docs/architecture.md`、`docs/implementation-roadmap.md`、`docs/implementation-status.md`、`AGENTS.md`
 - 建议下一步: 从 `Phase 0` 开始搭建 Rust workspace、Flutter App 骨架和协议/配置 crate，并在每个原子模块完成时同步补齐必要测试、更新本文件与提交 Conventional Commit
 
@@ -39,14 +39,14 @@
 | 文档基线 `implementation-roadmap` | done | 已完成 | 阶段、门槛和任务顺序已定义 | 按阶段推进 |
 | 仓库级 `AGENTS.md` | done | OpenCode | 已落地仓库级执行约束，明确先读 `docs/`、及时更新状态文档、每个原子模块完成后提交 Conventional Commit，并要求编码时同步编写必要测试 | 后续实现严格遵守 |
 | Rust workspace | done | OpenCode | 已创建根 `Cargo.toml`、工作区成员列表、统一依赖版本，以及 `crates/` 模块目录骨架 | 开始实现各 crate 代码骨架 |
-| `crates/protocol` | not_started | 待定 | 协议模型未编码 | 先定义消息、错误码、基础类型 |
-| `crates/config` | not_started | 待定 | 配置模型未编码 | 先定义 TOML 模型和默认值 |
-| `crates/server-core` | not_started | 待定 | 会话状态机和协商逻辑未编码 | 等 protocol/config 骨架完成后开始 |
-| `crates/display-backend` | not_started | 待定 | Wayland 主后端尚未验证 | Phase 1 优先验证 |
-| `crates/capture` | not_started | 待定 | 捕获链路未编码 | 随显示后端验证同步推进 |
-| `crates/encoder` | not_started | 待定 | 编码链路未编码 | 最小目标是 H.264 Annex B |
-| `crates/transport` | not_started | 待定 | WebSocket 传输未编码 | Phase 2 打通最小 LAN 闭环 |
-| `crates/app-cli` | not_started | 待定 | CLI 命令未编码 | 先提供占位命令 |
+| `crates/protocol` | done | OpenCode | 已定义控制消息、错误码、协商基础类型、媒体包头模型，并用单元测试验证关键序列化形态 | 后续按 Phase 2/3 扩展协议字段 |
+| `crates/config` | done | OpenCode | 已定义 raw/normalized/effective 三层配置骨架、默认值、规范化与校验入口，并用单元测试验证默认配置与 TOML 输出 | 后续补 CLI/ENV/file 合并逻辑 |
+| `crates/server-core` | done | OpenCode | 已建立会话状态枚举、`SessionManager` 占位、协议版本校验与统一服务端错误类型 | 后续在 Phase 2 接入真实状态机与会话编排 |
+| `crates/display-backend` | done | OpenCode | 已定义 `DisplayBackend`/`DisplayHandle` 抽象、probe 结果结构和 no-op 占位后端 | Phase 1 进入真实后端验证与实现 |
+| `crates/capture` | done | OpenCode | 已定义原始帧格式、像素格式、帧结构与 `CaptureSource` 抽象 | Phase 1 对接真实捕获链路 |
+| `crates/encoder` | done | OpenCode | 已定义编码器 probe/config/reconfigure/encoded frame 模型与 `EncoderBackend` 抽象 | Phase 1/2 对接真实 H.264 编码路径 |
+| `crates/transport` | done | OpenCode | 已定义会话路径、心跳默认值、传输配置与服务端占位结构 | Phase 2 实现 WebSocket 监听与帧分流 |
+| `crates/app-cli` | done | OpenCode | 已实现 `serve/doctor/probe/print-default-config/usb/version` 的 `clap` 命令树与 tracing 初始化，占位命令可运行 | Phase 1/5 补充真实逻辑 |
 | `apps/android` Flutter 壳 | not_started | 待定 | App 工程未建立 | 创建页面骨架和状态管理骨架 |
 | Android 原生解码插件 | not_started | 待定 | MediaCodec 桥接未编码 | Phase 2 最小 H.264 解码 |
 | `systemd --user` 集成 | not_started | 待定 | unit 和说明未落地 | Phase 5 完成 |
@@ -63,6 +63,8 @@
 6. 在仓库级执行约束与核心实现文档中明确：编码时必须同步编写必要测试或留下验证记录，没有测试或验证结果的改动不视为完成。
 7. 按模块创建了 `crates/` 与 `apps/android/` 目录，并为 `protocol/config/server-core/display-backend/capture/encoder/transport/app-cli/android/native` 落地 `IMPLEMENTATION_PLAN.md`，满足“先写模块计划再编码”的仓库约束。
 8. 创建了 Rust workspace 根 `Cargo.toml`，统一声明工作区成员与 Phase 0 需要的核心依赖版本。
+9. 完成 Rust Phase 0 骨架：`protocol` 定义控制消息与错误码，`config` 定义三层配置模型与默认值，`server-core/display-backend/capture/encoder/transport` 定义核心抽象接口，`app-cli` 建立命令树与日志初始化。
+10. 新增与 Rust 骨架匹配的自动化验证：`cargo test -p protocol -p config -p server-core` 全通过，`cargo check` 全工作区通过，`cargo run -p tab-screen -- --help` 能输出命令帮助。
 
 **当前未开始但已确定的实现基线**
 
@@ -80,8 +82,8 @@
 2. Wayland 虚拟显示器是否支持按连接创建/销毁仍未实测。
 3. 稳定命名能力是否由后端原生提供仍未确认。
 4. Rust 编码链路到 Android `MediaCodec` 的 Annex B 兼容性仍未实测。
-5. 虽然 Rust workspace 已建立，但各 crate 代码骨架、CLI、Flutter App 和测试入口仍未完成，当前还不能视为 Phase 0 达标。
-6. 测试要求已明确，但除工作区层级外自动化测试基础设施仍在建立中；Phase 0 后续步骤必须继续把测试入口与模块代码一起落地，避免后续补账。
+5. Flutter Android 壳体虽已生成，但最终分析和测试结果仍需在当前变更中一并确认，才能把 Phase 0 视作完整达标。
+6. Phase 1 的核心风险仍未变化：显示后端可行性、稳定命名与捕获链路尚未验证，因此完成 Phase 0 后必须立即转向后端验证，不能提前扩展 UI 或媒体功能。
 
 只要上述任一项存疑，就不应跳到复杂 UI 或增强特性。
 
@@ -98,10 +100,9 @@
 
 最推荐的直接起点是以下 3 个任务。
 
-1. 完成 `protocol`、`config`、`app-cli` 与其他 Rust crate 的代码骨架和最小测试。
-2. 使用 `flutter create` 建立 Android 客户端骨架，并补页面路由、控制器与存储占位。
-3. 在 Rust 与 Flutter 工程骨架建立后，立即执行 `cargo check`、针对性单元测试、`flutter analyze` 和 `flutter test`，把验证结果写回本文件。
-4. 每完成一个原子模块，同步更新本文件并创建一条符合 Conventional Commits 1.0.0 的提交。
+1. 完成 Flutter Android 客户端壳体收尾，包括页面路由、控制器、存储层和原生插件占位的验证与状态同步。
+2. 让工作树回到干净状态后，把当前阶段切换到 Phase 1 准备态，开始显示后端 probe 与创建/销毁验证。
+3. 每完成一个原子模块，同步更新本文件并创建一条符合 Conventional Commits 1.0.0 的提交。
 
 **模块完成后必须更新的字段**
 
@@ -130,6 +131,7 @@
 | 2026-04-14 | OpenCode | 明确 `AGENTS.md` 中 Conventional Commits 1.0.0 的提交格式与关键规则，移除外链依赖，确保仓库内可直接查阅提交规范 |
 | 2026-04-14 | OpenCode | 强化仓库级与核心实现文档中的测试要求，明确编码时必须同步编写必要测试或留下验证记录，缺少验证结果的改动不视为完成 |
 | 2026-04-14 | OpenCode | 开始 Phase 0 落地：创建 `crates/` 与 `apps/android/` 模块目录、各模块 `IMPLEMENTATION_PLAN.md`，并建立 Rust workspace 根配置 |
+| 2026-04-14 | OpenCode | 完成 Rust Phase 0 骨架：落地协议、配置、核心接口和 CLI 占位实现，并记录 `cargo test`、`cargo check` 与 CLI 帮助输出验证结果 |
 
 **更新模板**
 

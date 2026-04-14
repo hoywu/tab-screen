@@ -22,6 +22,12 @@
 - The module implementation plan stored in the module directory must be kept in sync with the actual delivered code; if the plan changes during implementation, update it in the same change.
 - If coding reveals that the current plan or other repository documentation must change, update the relevant documentation first so it reflects the new intended reality, then continue implementation.
 
+## Testing And Validation
+- When implementing or fixing functionality, write the necessary tests in the same change to verify the behavior and guard against regressions.
+- Treat tests as part of the completion criteria for each module: key success paths, important boundaries, and relevant failure paths must have matching verification.
+- If the current module cannot yet be covered by automation because the required harness or environment does not exist, record the reason in the relevant docs and provide the smallest practical manual validation steps and observed results.
+- Do not treat code as complete if it has no matching test or explicit validation evidence.
+
 ## Commits
 - After finishing each atomic module, create a git commit before starting the next module.
 - Commit messages must follow Conventional Commits 1.0.0. The commit message format is:
@@ -53,3 +59,4 @@
 - Display parameters and stream parameters are separate decisions; do not merge them into one model.
 - Stable client identity and persistent display-name mapping must exist before display creation logic is treated as complete.
 - During coding, add concise comments at each key logic point so readers can quickly understand the role of each important code block; avoid verbose or line-by-line commentary.
+- The repo currently has no verified build or test commands; add and run test commands only after the corresponding tooling exists in the repo, and do not invent commands before then.

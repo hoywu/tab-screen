@@ -13,6 +13,7 @@
 - 本文件是“当前实现真相源”，关注的是已经落地的实现状态，而不是计划。
 - 每次完成一个完整模块编码后，必须同步更新以下部分。
 - 如果实现与 `docs/architecture.md` 或 `docs/implementation-roadmap.md` 有偏离，必须在本文件明确记录原因。
+- 每次模块完成时，必须同时记录与该模块相匹配的测试或验证结果；没有测试或验证结果，不应标记为完成。
 - 如果只完成了一半，不要把模块标记为 `done`，而应标记为 `in_progress` 并写清剩余工作。
 
 模块状态约定。
@@ -20,14 +21,14 @@
 - `not_started`: 未开始
 - `in_progress`: 已开工但未形成可交付闭环
 - `blocked`: 因外部依赖或技术问题阻塞
-- `done`: 已完成并具备对应验证结果
+- `done`: 已完成并具备对应测试或验证结果
 
 **当前快照**
 
 - 当前阶段: `Phase 0 / pre-implementation`
-- 总体状态: 已完成产品/架构/路线图文档，并新增仓库级 `AGENTS.md` 作为后续 Agent 的执行约束；代码仍未开始落地
-- 最新可用文档: `docs/prd.md`、`docs/architecture.md`、`docs/implementation-roadmap.md`、`AGENTS.md`
-- 建议下一步: 从 `Phase 0` 开始搭建 Rust workspace、Flutter App 骨架和协议/配置 crate，并在每个原子模块完成后同步更新本文件与提交 Conventional Commit
+- 总体状态: 已完成产品/架构/路线图文档与仓库级执行约束，并进一步明确“编码时必须同步编写必要测试并留下验证结果”；代码仍未开始落地
+- 最新可用文档: `docs/prd.md`、`docs/architecture.md`、`docs/implementation-roadmap.md`、`docs/implementation-status.md`、`AGENTS.md`
+- 建议下一步: 从 `Phase 0` 开始搭建 Rust workspace、Flutter App 骨架和协议/配置 crate，并在每个原子模块完成时同步补齐必要测试、更新本文件与提交 Conventional Commit
 
 **模块状态总表**
 
@@ -36,7 +37,7 @@
 | 文档基线 `prd` | done | 已完成 | 产品需求已定义 | 作为验收依据保留 |
 | 文档基线 `architecture` | done | 已完成 | MVP 架构、接口、协议和状态机已定义 | 编码时按此为默认基线 |
 | 文档基线 `implementation-roadmap` | done | 已完成 | 阶段、门槛和任务顺序已定义 | 按阶段推进 |
-| 仓库级 `AGENTS.md` | done | OpenCode | 已落地仓库级执行约束，明确先读 `docs/`、及时更新状态文档、每个原子模块完成后提交 Conventional Commit | 后续实现严格遵守 |
+| 仓库级 `AGENTS.md` | done | OpenCode | 已落地仓库级执行约束，明确先读 `docs/`、及时更新状态文档、每个原子模块完成后提交 Conventional Commit，并要求编码时同步编写必要测试 | 后续实现严格遵守 |
 | Rust workspace | not_started | 待定 | 目录和 Cargo workspace 尚未建立 | 创建 `crates/` 和根 `Cargo.toml` |
 | `crates/protocol` | not_started | 待定 | 协议模型未编码 | 先定义消息、错误码、基础类型 |
 | `crates/config` | not_started | 待定 | 配置模型未编码 | 先定义 TOML 模型和默认值 |
@@ -59,6 +60,7 @@
 3. 完成 `docs/implementation-roadmap.md` 的分阶段路线图。
 4. 明确了 MVP 默认技术路线，包括 Rust workspace + Flutter Android、单会话模型、WebSocket 单连接承载控制与媒体、`H.264` 为 MVP 必达媒体格式，以及显示参数与串流参数两阶段决策。
 5. 新增仓库根 `AGENTS.md`，将后续 Agent 的起手阅读顺序、阶段推进顺序、状态文档维护要求和提交规范固定为仓库约束。
+6. 在仓库级执行约束与核心实现文档中明确：编码时必须同步编写必要测试或留下验证记录，没有测试或验证结果的改动不视为完成。
 
 **当前未开始但已确定的实现基线**
 
@@ -77,6 +79,7 @@
 3. 稳定命名能力是否由后端原生提供仍未确认。
 4. Rust 编码链路到 Android `MediaCodec` 的 Annex B 兼容性仍未实测。
 5. 仓库仍无可执行工程文件，因此任何构建、测试、lint、运行命令目前都不能假设存在。
+6. 测试要求已明确，但自动化测试基础设施仍未建立；Phase 0 起需把测试入口与模块代码一起落地，避免后续补账。
 
 只要上述任一项存疑，就不应跳到复杂 UI 或增强特性。
 
@@ -96,7 +99,8 @@
 1. 创建 Rust workspace 和 `crates/` 骨架。
 2. 创建 Flutter Android App 骨架。
 3. 为 `display-backend` 写出 `DisplayBackend` 抽象和最小 `probe` 骨架。
-4. 每完成一个原子模块，同步更新本文件并创建一条符合 Conventional Commits 1.0.0 的提交。
+4. 在 Rust 与 Flutter 工程骨架建立后，立即为对应模块补上最小可运行测试入口，不要先写功能后补测试体系。
+5. 每完成一个原子模块，同步更新本文件并创建一条符合 Conventional Commits 1.0.0 的提交。
 
 **模块完成后必须更新的字段**
 
@@ -112,7 +116,8 @@
 完整模块的判断标准。
 
 - 有代码落地。
-- 有最小验证结果。
+- 有与改动匹配的必要测试或最小验证结果。
+- 测试结果或人工验证结论已记录。
 - 有明确边界，不是零散改动。
 
 **变更记录**
@@ -122,6 +127,7 @@
 | 2026-04-13 | OpenCode | 初始化实现状态文档，记录当前仍处于文档完成、代码未启动状态 |
 | 2026-04-14 | OpenCode | 新增根级 `AGENTS.md`，并同步记录后续 Agent 必须先读 `docs/`、及时更新状态文档、每个原子模块完成后提交 Conventional Commit 的仓库约束 |
 | 2026-04-14 | OpenCode | 明确 `AGENTS.md` 中 Conventional Commits 1.0.0 的提交格式与关键规则，移除外链依赖，确保仓库内可直接查阅提交规范 |
+| 2026-04-14 | OpenCode | 强化仓库级与核心实现文档中的测试要求，明确编码时必须同步编写必要测试或留下验证记录，缺少验证结果的改动不视为完成 |
 
 **更新模板**
 

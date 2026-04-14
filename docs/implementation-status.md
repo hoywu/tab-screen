@@ -25,8 +25,8 @@
 
 **当前快照**
 
-- 当前阶段: `Phase 0 / in_progress`
-- 总体状态: Phase 0 持续推进中；Rust workspace、协议/配置/核心接口/CLI 骨架已落地并通过 `cargo check` 与关键单元测试，Flutter Android 壳体已生成并进入验证收尾
+- 当前阶段: `Phase 0 / done`
+- 总体状态: Phase 0 已完成；Rust workspace 与各 crate 骨架、Flutter Android App 骨架、控制器/存储占位、Android 原生插件壳、CLI 命令树以及最小测试入口均已落地并完成验证
 - 最新可用文档: `docs/prd.md`、`docs/architecture.md`、`docs/implementation-roadmap.md`、`docs/implementation-status.md`、`AGENTS.md`
 - 建议下一步: 从 `Phase 0` 开始搭建 Rust workspace、Flutter App 骨架和协议/配置 crate，并在每个原子模块完成时同步补齐必要测试、更新本文件与提交 Conventional Commit
 
@@ -47,8 +47,8 @@
 | `crates/encoder` | done | OpenCode | 已定义编码器 probe/config/reconfigure/encoded frame 模型与 `EncoderBackend` 抽象 | Phase 1/2 对接真实 H.264 编码路径 |
 | `crates/transport` | done | OpenCode | 已定义会话路径、心跳默认值、传输配置与服务端占位结构 | Phase 2 实现 WebSocket 监听与帧分流 |
 | `crates/app-cli` | done | OpenCode | 已实现 `serve/doctor/probe/print-default-config/usb/version` 的 `clap` 命令树与 tracing 初始化，占位命令可运行 | Phase 1/5 补充真实逻辑 |
-| `apps/android` Flutter 壳 | not_started | 待定 | App 工程未建立 | 创建页面骨架和状态管理骨架 |
-| Android 原生解码插件 | not_started | 待定 | MediaCodec 桥接未编码 | Phase 2 最小 H.264 解码 |
+| `apps/android` Flutter 壳 | done | OpenCode | 已用 `flutter create` 建立 Android App，补齐 5 个页面路由、3 个控制器、偏好存储仓储、基础主题和最小 widget/仓储测试 | Phase 2 接入传输与解码链路 |
+| Android 原生解码插件 | done | OpenCode | 已在 Android `MainActivity` 与 Dart 平台层中建立原生解码方法通道壳，暴露后续 `MediaCodec` 所需 API 占位 | Phase 2 实现真实解码与渲染 |
 | `systemd --user` 集成 | not_started | 待定 | unit 和说明未落地 | Phase 5 完成 |
 | `doctor/probe` | not_started | 待定 | 诊断命令未落地 | 依赖后端 probe 结果 |
 | USB `adb reverse` | not_started | 待定 | USB 接入未落地 | LAN 跑通后复用协议接入 |
@@ -65,6 +65,8 @@
 8. 创建了 Rust workspace 根 `Cargo.toml`，统一声明工作区成员与 Phase 0 需要的核心依赖版本。
 9. 完成 Rust Phase 0 骨架：`protocol` 定义控制消息与错误码，`config` 定义三层配置模型与默认值，`server-core/display-backend/capture/encoder/transport` 定义核心抽象接口，`app-cli` 建立命令树与日志初始化。
 10. 新增与 Rust 骨架匹配的自动化验证：`cargo test -p protocol -p config -p server-core` 全通过，`cargo check` 全工作区通过，`cargo run -p tab-screen -- --help` 能输出命令帮助。
+11. 使用 `flutter create` 建立 `apps/android` 工程，补齐 `Home/Connect/Fullscreen/Settings/Diagnostics` 五个页面占位、`SessionController/SettingsController/DiagnosticsController`、`PreferencesRepository` 以及原生解码插件 Dart/Kotlin 壳。
+12. 完成 Flutter Phase 0 验证：`flutter analyze` 无问题，`flutter test` 通过，应用启动后的首页和本地偏好存储路径已有最小自动化覆盖。
 
 **当前未开始但已确定的实现基线**
 
@@ -82,8 +84,8 @@
 2. Wayland 虚拟显示器是否支持按连接创建/销毁仍未实测。
 3. 稳定命名能力是否由后端原生提供仍未确认。
 4. Rust 编码链路到 Android `MediaCodec` 的 Annex B 兼容性仍未实测。
-5. Flutter Android 壳体虽已生成，但最终分析和测试结果仍需在当前变更中一并确认，才能把 Phase 0 视作完整达标。
-6. Phase 1 的核心风险仍未变化：显示后端可行性、稳定命名与捕获链路尚未验证，因此完成 Phase 0 后必须立即转向后端验证，不能提前扩展 UI 或媒体功能。
+5. Phase 1 的核心风险仍未变化：显示后端可行性、稳定命名与捕获链路尚未验证，因此虽然 Phase 0 已完成，下一步仍必须立即转向后端验证，不能提前扩展 UI 或媒体功能。
+6. Flutter 当前仅完成工程壳和占位逻辑，稳定 ID 已落地到本地存储，但真实传输、解码和全屏渲染仍未实现，不应误判为可用客户端。
 
 只要上述任一项存疑，就不应跳到复杂 UI 或增强特性。
 
@@ -100,8 +102,8 @@
 
 最推荐的直接起点是以下 3 个任务。
 
-1. 完成 Flutter Android 客户端壳体收尾，包括页面路由、控制器、存储层和原生插件占位的验证与状态同步。
-2. 让工作树回到干净状态后，把当前阶段切换到 Phase 1 准备态，开始显示后端 probe 与创建/销毁验证。
+1. 进入 Phase 1，在 `crates/display-backend` 中实现至少一个候选后端的 `probe` 与独立验证命令，优先验证创建/销毁和稳定命名能力。
+2. 在 `crates/capture` 中接入与该显示后端配套的最小帧获取路径，并记录验证结果文档。
 3. 每完成一个原子模块，同步更新本文件并创建一条符合 Conventional Commits 1.0.0 的提交。
 
 **模块完成后必须更新的字段**
@@ -132,6 +134,7 @@
 | 2026-04-14 | OpenCode | 强化仓库级与核心实现文档中的测试要求，明确编码时必须同步编写必要测试或留下验证记录，缺少验证结果的改动不视为完成 |
 | 2026-04-14 | OpenCode | 开始 Phase 0 落地：创建 `crates/` 与 `apps/android/` 模块目录、各模块 `IMPLEMENTATION_PLAN.md`，并建立 Rust workspace 根配置 |
 | 2026-04-14 | OpenCode | 完成 Rust Phase 0 骨架：落地协议、配置、核心接口和 CLI 占位实现，并记录 `cargo test`、`cargo check` 与 CLI 帮助输出验证结果 |
+| 2026-04-14 | OpenCode | 完成 Flutter Android Phase 0 骨架：用 `flutter create` 建立 App，补齐页面/控制器/偏好存储/原生插件壳，并记录 `flutter analyze` 与 `flutter test` 验证结果 |
 
 **更新模板**
 

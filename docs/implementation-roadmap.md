@@ -6,7 +6,7 @@
 - 文档类型: Implementation Roadmap
 - 文档目标: 将 `docs/prd.md` 和 `docs/architecture.md` 拆解为可执行的分阶段编码任务
 - 适用范围: MVP 到首个可验收版本
-- 当前版本: `v1.1`
+- 当前版本: `v1.0`
 - 文档状态: Ready for implementation
 
 **执行原则**

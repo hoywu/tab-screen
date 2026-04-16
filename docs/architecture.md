@@ -6,7 +6,7 @@
 - 文档类型: Architecture Document
 - 文档目标: 将 `docs/prd.md` 落实为可编码的 MVP 架构基线
 - 适用范围: Rust 服务端 + Flutter Android 客户端
-- 当前版本: `v1.1`
+- 当前版本: `v1.0`
 - 文档状态: Phase 1 validated baseline
 
 **设计目标**

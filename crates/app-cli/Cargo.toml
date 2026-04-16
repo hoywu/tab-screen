@@ -8,6 +8,7 @@ license.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 config = { path = "../config" }
+display-backend = { path = "../display-backend" }
 protocol = { path = "../protocol" }
 server-core = { path = "../server-core" }
 tokio.workspace = true

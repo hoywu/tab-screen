@@ -6,7 +6,7 @@
 - 文档类型: Implementation Roadmap
 - 文档目标: 将 `docs/prd.md` 和 `docs/architecture.md` 拆解为可执行的分阶段编码任务
 - 适用范围: MVP 到首个可验收版本
-- 当前版本: `v1.0`
+- 当前版本: `v1.1`
 - 文档状态: Ready for implementation
 
 **执行原则**
@@ -27,7 +27,7 @@
 | Phase 2 | 最小闭环 | 固定参数 LAN 串流跑通 | Android 可看到 Linux 副屏画面 |
 | Phase 3 | 协商与稳定命名 | 完成身份持久化、参数协商、重协商 | 同一客户端可稳定重连并得到实际参数 |
 | Phase 4 | 产品化客户端 | 完成设置页、自动重连、诊断页、全屏体验 | 客户端满足 MVP UI 要求 |
-| Phase 5 | 运维与接入 | 完成 systemd、doctor/probe、USB ADB reverse | 服务端具备部署和诊断能力 |
+| Phase 5 | 运维与接入 | 完成系统级服务集成、doctor/probe、USB ADB reverse | 服务端具备部署和诊断能力 |
 | Phase 6 | MVP 验收与硬化 | 完成长稳验证、错误处理、文档补齐 | 对照 PRD 验收项通过 |
 
 **工作流约束**
@@ -93,7 +93,7 @@
 
 - 支持的 compositor/环境矩阵。
 - 主后端的依赖条件和失败方式。
-- 是否需要额外权限、模块、内核能力或用户会话前置条件。
+- 是否需要额外权限、模块、内核能力或系统服务前置条件。
 - 稳定命名是原生支持还是通过映射层实现。
 
 具体任务。
@@ -230,19 +230,20 @@
 - 实现 `print-default-config`。
 - 实现 `usb adb-reverse` 命令。
 - 为 USB 模式复用同一 WebSocket 会话协议。
-- 提供 `systemd --user` unit 示例和说明文档。
+- 提供系统级服务 unit 示例和说明文档。
+- 明确系统级特权服务所需的权限、状态目录和日志查看方式。
 - 确保 `serve` 作为待机服务运行时不会预创建显示器。
 
 测试任务。
 
-- `doctor` 在缺失 Wayland、缺失 ADB、后端不可用等场景下给出明确输出。
+- `doctor` 在缺失显示后端、缺失 ADB、后端不可用、权限不足等场景下给出明确输出。
 - `adb reverse` 成功和失败路径都有清晰日志与返回码。
-- `systemd --user` 启动后能在图形会话中待机。
+- 系统级服务启动后能在待机状态下保持可诊断且不预创建显示器。
 
 退出门槛。
 
 - 用户可用 `tab-screen serve` 启动服务。
-- 用户可用 `systemd --user` 管理服务。
+- 用户可用系统级服务管理器管理服务。
 - USB 模式在 `adb reverse` 就绪后可以成功连接。
 - `doctor/probe` 能帮助定位主要失败场景。
 
@@ -278,7 +279,7 @@
 6. Agent F: Android 原生解码插件。
 7. Agent G: 参数协商、稳定命名和持久化。
 8. Agent H: 设置页、诊断页和自动重连。
-9. Agent I: doctor/probe/systemd/USB。
+9. Agent I: doctor/probe/系统级服务/USB。
 10. Agent J: 集成测试、验收清单和文档补齐。
 
 其中 3/4/5/6 之间存在较强依赖，必须围绕同一条最小闭环频繁合并验证，不建议各自长期分叉。

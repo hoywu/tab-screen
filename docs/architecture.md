@@ -6,15 +6,16 @@
 - 文档类型: Architecture Document
 - 文档目标: 将 `docs/prd.md` 落实为可编码的 MVP 架构基线
 - 适用范围: Rust 服务端 + Flutter Android 客户端
-- 当前版本: `v1.0`
-- 文档状态: Ready for implementation
+- 当前版本: `v1.1`
+- 文档状态: Phase 1 validated baseline
 
 **设计目标**
 
 - 让后续 Agent 可以按统一模块边界开始编码，而不是边写边重构架构。
 - 对 PRD 中尚未落地的实现细节给出最小但明确的技术决策。
-- 保留 Wayland 显示后端和编码后端的替换能力，但不为 Post-MVP 过度设计。
+- 保留显示后端和编码后端的替换能力，但不为 Post-MVP 过度设计。
 - 明确系统中哪些部分必须先验证，哪些部分可以在验证通过后稳定展开实现。
+- 在文档层明确 Phase 1 已选定的主显示后端、运行权限模型和验证结论，避免后续实现再次回到已否定的方向。
 
 **架构原则**
 
@@ -26,25 +27,32 @@
 - 明确协商: 客户端请求不是最终结果，服务端始终返回实际生效值。
 - 强诊断: 启动失败、后端缺失、能力不匹配都必须可诊断。
 - 最小正确实现: 先打通固定参数闭环，再做协商、USB、设置页和增强能力。
+- 特权边界清晰: `evdi` 动态创建设备节点与打开节点通常需要管理员权限，因此服务端主运行模型采用系统级特权服务，而不是 `systemd --user`。
+- 身份分层: 稳定身份由服务端映射层和 EDID 身份共同提供，不依赖 `cardX` 编号稳定。
 
 **MVP 具体技术选择**
 
-本节是为了减少后续实现分歧，除非 Phase 0/1 验证明确证明不可行，否则按以下选择实现。
+本节是为了减少后续实现分歧，除非 Phase 1 之后的进一步验证明确证明不可行，否则按以下选择实现。
 
 - Rust 工作区组织服务端代码。
 - Flutter Android App 负责 UI、连接管理和会话状态展示。
 - 服务端异步运行时使用 `tokio`。
 - CLI 使用 `clap`。
 - 配置使用 `serde + toml`。
-- 日志使用 `tracing`，输出面向 `journalctl --user` 友好的结构化文本。
+- 日志使用 `tracing`，输出面向系统服务日志查看友好的结构化文本。
 - 协议统一跑在单个 TCP 端口上。
 - MVP 传输层使用单条 WebSocket 连接。
 - WebSocket 文本帧承载控制协议 JSON 消息。
 - WebSocket 二进制帧承载媒体数据包。
 - 媒体编码首版只要求 `H.264/AVC 8-bit SDR` 必通。
 - Android 解码首选 `MediaCodec`，失败时允许软件回退或明确提示不支持。
-- 服务端稳定身份映射持久化到用户态 state 目录。
+- 服务端稳定身份映射持久化到系统服务可管理的 state 目录。
 - USB 模式不设计独立协议，直接复用 LAN 同一传输与协议栈。
+- 主显示后端选择 `evdi + libevdi`。
+- `evdi` 集成调用系统安装的 `libevdi`，并优先使用 `evdi_open_attached_to_fixed`，不依赖已弃用的 `evdi_open_attached_to`。
+- 服务端默认运行模型是系统级特权服务，以便创建、打开和管理 `evdi` DRM 节点。
+- 显示器稳定身份通过客户端稳定 ID -> 逻辑显示名映射，再结合稳定 EDID 监视器名与序列号实现。
+- Phase 1 捕获路径采用 `evdi_register_buffer` + `evdi_request_update` + `evdi_handle_events` + `evdi_grab_pixels` 的最小同步抓帧实现。
 
 选择 WebSocket 的原因很简单。
 
@@ -52,6 +60,38 @@
 - `adb reverse` 和 LAN 都能透明复用。
 - 文本控制帧 + 二进制媒体帧足够支撑 MVP。
 - 即使存在 TCP 队头阻塞，也符合 MVP 的本地优先目标；低延迟 UDP/QUIC 留到 Post-MVP。
+
+选择 `evdi` 作为主显示后端的原因如下。
+
+- 它已在目标环境中完成 Phase 1 可行性验证。
+- 它能由内核模块向 DRM 暴露虚拟输出，不再要求服务端直接依赖当前登录用户的 Wayland 会话控制接口。
+- 它支持按需创建/销毁虚拟显示路径，符合“按连接生命周期创建与回收”的产品要求。
+- 它可以通过稳定 EDID 身份配合逻辑显示名映射，为桌面侧记忆显示器布局提供可行基础。
+- 它具备可直接抓取 framebuffer 的用户态接口，能支持后续编码链路。
+
+**Phase 1 已确认的后端结论**
+
+以下结论来自已完成的本机 Phase 1 验证，应视为当前实现基线。
+
+- 当前主后端: `evdi`
+- 用户态库版本: `libevdi 1.14.15`
+- 当前内核模块版本: `evdi 1.14.15`
+- 当前已验证环境: `Arch Linux`, `kernel 6.19.11-arch1-1`, `niri`, `Wayland`
+- 运行权限要求: 创建和打开 `evdi` 节点时通常需要 root 或等效管理员权限
+- Arch Linux 前置步骤:
+  1. 安装 `evdi-dkms`
+  2. 安装 `linux-headers`
+  3. 创建 `/etc/modules-load.d/evdi.conf`，内容为 `evdi`，以实现开机自动加载模块
+- 当前已验证能力:
+  - `doctor` 可输出 `evdi` 环境检查结果
+  - `probe` 可输出后端探测结果
+  - 可重复执行“创建显示器 -> 等待 -> 抓取一帧 -> 销毁显示器”
+  - 同一逻辑显示名重复验证时，逻辑身份和生成的 EDID 身份保持稳定
+  - 已成功抓取 `1920x1200`, `stride=7680`, `9216000` 字节的非空帧
+- 当前已知边界:
+  - 尚未完成多 compositor 支持矩阵
+  - 尚未完成持续串流与编码联调
+  - 稳定身份依赖映射层 + EDID，而不是内核节点编号
 
 **系统上下文**
 
@@ -64,7 +104,7 @@ Android Tablet App
             ↑
             │ LAN TCP or adb reverse TCP
             ↓
-Rust Server CLI (`tab-screen serve`)
+System Service (`tab-screen serve`)
   ├─ Config + CLI + Logging
   ├─ Session Manager
   ├─ Client Identity Store
@@ -74,9 +114,14 @@ Rust Server CLI (`tab-screen serve`)
   ├─ Encoder Backend
   └─ WebSocket Control/Media Transport
             ↓
-Linux Wayland Session
+Linux DRM / EVDI
   ├─ Virtual Display Output
-  └─ Desktop remembers per-display layout/scale
+  ├─ EDID Identity
+  └─ Framebuffer Access
+            ↓
+Desktop Compositor / Session
+  ├─ Detects virtual output
+  └─ Remembers per-display layout/scale
 ```
 
 **仓库建议结构**
@@ -125,12 +170,14 @@ Linux Wayland Session
 - 负责 CLI 参数解析。
 - 合并 CLI、环境变量、配置文件、默认值。
 - 初始化日志、state 目录、运行时和依赖对象。
+- 负责适配系统级服务启动模型下的路径与权限约束。
 
 2. 环境诊断层
 
 - `doctor` 用于输出当前运行环境是否满足启动条件。
 - `probe` 用于输出机器可用能力，推荐支持 JSON 输出，方便后续自动化测试。
-- 诊断范围至少包括 Wayland 会话、显示后端、编码器、ADB、监听端口。
+- Phase 1 下诊断范围至少包括 `evdi` 模块、`libevdi` 版本、权限状态、基础 DRM 节点、显示后端、编码器、ADB、监听端口。
+- 不再把“当前用户的 Wayland 会话是否可直接操作”作为主前提检查项。
 
 3. 会话编排层
 
@@ -142,7 +189,8 @@ Linux Wayland Session
 
 - 根据协商出的显示参数创建虚拟显示器。
 - 绑定对应捕获源。
-- 保证显示器名称稳定。
+- 保证显示器逻辑身份稳定。
+- 负责将逻辑显示身份映射为稳定的 EDID 身份信息。
 
 5. 编码与媒体层
 
@@ -224,6 +272,41 @@ pub trait EncoderBackend: Send {
 - 编码器抽象必须允许软件和硬件实现并存。
 - `reconfigure` 必须明确返回“热更新成功”还是“需要重建”。
 
+**当前主后端实现切面**
+
+Phase 1 已选定 `evdi` 后，显示后端层当前最重要的后端内部分工如下。
+
+1. `probe`
+
+- 查询 `libevdi` 版本。
+- 检查 `evdi` 模块是否已加载。
+- 给出 Arch Linux 前置步骤提醒。
+- 给出权限要求与系统级服务运行建议。
+- 报告是否支持创建/销毁与稳定逻辑命名。
+
+2. `create_output`
+
+- 接收 `VirtualDisplaySpec`。
+- 生成包含稳定监视器名与序列号的 EDID。
+- 通过 `evdi_open_attached_to_fixed` 打开或创建 `evdi` 设备。
+- 调用 `evdi_connect` 向 DRM 暴露虚拟显示器。
+- 返回 `DisplayHandle`。
+
+3. `capture_source`
+
+- 创建 `evdi` 抓帧对象。
+- 等待 `mode_changed`。
+- 注册用户态 buffer。
+- 请求 update。
+- 在 `update_ready` 后抓取像素。
+- 输出 `RawFrame`。
+
+4. `destroy`
+
+- 先断开显示器。
+- 再关闭 `evdi` handle。
+- 在 Rust 边界尽量保证幂等回收。
+
 **客户端稳定身份与显示器命名**
 
 客户端必须在首次安装后生成稳定 ID，并持久化在本地存储中。推荐使用 UUID v4。
@@ -234,11 +317,12 @@ pub trait EncoderBackend: Send {
 2. 在本地映射表中查找是否已有绑定记录。
 3. 若不存在，则生成新的逻辑显示名并写入持久化存储。
 4. 后续同一 `client_stable_id` 重连时复用相同逻辑显示名。
+5. 用相同逻辑显示名生成稳定 EDID 监视器名和序列号。
 
 推荐 state 路径。
 
-- `~/.local/state/tab-screen/clients.toml`
-- `~/.local/state/tab-screen/runtime/`
+- `/var/lib/tab-screen/clients.toml`
+- `/var/lib/tab-screen/runtime/`
 
 推荐映射结构。
 
@@ -250,6 +334,8 @@ display_name = "Tab Screen 3C3F0E"
 first_seen_at = "2026-04-13T10:00:00Z"
 last_seen_at = "2026-04-13T12:00:00Z"
 device_model = "SM-X700"
+edid_monitor_name = "TabScr3C3F0E"
+edid_serial = "TSA1B2C3D4"
 ```
 
 命名规则。
@@ -258,6 +344,8 @@ device_model = "SM-X700"
 - 后缀使用稳定 ID 的短哈希或短 UUID。
 - 一旦落盘，不再因为设备型号变化而修改显示名。
 - 若底层后端需要额外 backend-specific ID，也单独持久化，但不能影响逻辑名稳定性。
+- 不依赖 `cardX` 编号复用来表达稳定身份。
+- `evdi` 场景下，稳定身份的关键是逻辑映射 + 稳定 EDID，而不是 DRM 节点号。
 
 **显示参数与串流参数的两阶段决策**
 
@@ -313,6 +401,15 @@ AppConfig
   ├─ NetworkConfig
   └─ UsbConfig
 ```
+
+系统级服务模型下的推荐路径如下。
+
+- 配置: `/etc/tab-screen/config.toml`
+- state: `/var/lib/tab-screen/`
+- runtime: `/run/tab-screen/`
+- 日志: 系统服务日志查看工具，不额外设计文件日志为默认路径
+
+仍可保留用户态手动运行支持，但它不是 MVP 的主部署模型。
 
 **控制协议架构**
 
@@ -399,87 +496,118 @@ Byte 0      : packet_type (1 = video)
 Byte 1      : codec (1 = h264, 2 = hevc)
 Byte 2      : flags bitset (bit0 keyframe, bit1 config, bit2 end_of_stream)
 Byte 3      : reserved
-Byte 4..11  : pts_us (u64 LE)
-Byte 12..15 : payload_len (u32 LE)
-Byte 16..N  : Annex B access unit bytes
+Byte 4..11  : pts_us (u64 little endian)
+Byte 12..15 : payload_len (u32 little endian)
+Byte 16..N  : payload
 ```
 
-规则如下。
+约束如下。
 
-- 一条二进制帧只承载一个访问单元。
-- `config` 帧用于发送 SPS/PPS 等解码配置数据。
-- 客户端必须在收到 config + keyframe 后才能恢复渲染。
-- `payload_len` 仅用于防御性校验，实际边界由 WebSocket frame 保证。
+- Phase 2 默认只跑视频包。
+- `config` 标记用于 SPS/PPS 等配置数据。
+- `end_of_stream` 用于平滑结束播放与解码器刷新。
 
-这样设计的原因是实现简单、足够稳定，并且适合 MediaCodec 直接喂入 Annex B 数据。
+**显示后端接口与捕获的实现边界**
 
-**会话生命周期**
+当前显示和捕获层职责进一步细化如下。
 
-完整时序如下。
+- `display-backend` 负责:
+  - 后端探测
+  - EDID 生成
+  - `evdi` 连接与断开
+  - 暴露抓帧入口
+- `capture` 负责:
+  - 统一 `RawFrameFormat`
+  - 统一 `RawFrame`
+  - 像素格式和 buffer 大小计算辅助逻辑
+- `encoder` 后续只接收统一原始帧，不感知 `evdi` 细节
 
-1. 客户端建立 WebSocket 连接。
-2. 客户端发送 `client_hello`。
-3. 服务端校验协议版本、认证信息、设备屏幕参数和单会话限制。
-4. 服务端解析稳定身份，生成或加载稳定显示名。
-5. 服务端返回 `server_hello`。
-6. 客户端发送 `start_session_request`，声明是否遵循服务器偏好及覆盖值。
-7. 服务端先完成显示参数决策并创建虚拟显示器。
-8. 服务端再完成串流参数协商。
-9. 服务端启动捕获、编码和发送任务。
-10. 服务端返回 `start_session_response`，包含最终生效参数。
-11. 客户端初始化解码器并进入全屏显示。
-12. 会话中客户端可以发送 `update_stream_request`。
-13. 断连或主动结束时，服务端销毁显示器并落盘更新状态。
+Phase 1 当前默认抓帧格式。
 
-**并发模型**
+- 像素格式: `BGRA8888`
+- 位深: `8-bit`
+- 单 buffer、同步请求为主
+- 以正确性与可诊断性优先，不做连续高性能优化
 
-服务端运行时建议拆为以下任务。
+**错误处理与可诊断性**
 
-- 监听任务: 接受新连接。
-- 会话控制任务: 解析文本控制消息、维护状态机。
-- 媒体发送任务: 读取编码输出并发送二进制帧。
-- 心跳任务: 周期性发送/接收保活和统计。
-- 资源监控任务: 监控编码器、捕获源和显示后端异常。
+以下错误必须有明确表现。
 
-即使内部是多任务，也必须通过单一 `SessionManager` 串行化对“当前活动会话”的状态修改，避免显示器重复创建或销毁顺序错乱。
+- `evdi` 内核模块未加载
+- `libevdi` 不可用或版本不兼容
+- 权限不足，无法创建或打开 `evdi` 节点
+- `mode_changed` 长时间未到达
+- `update_ready` 长时间未到达
+- 抓取到空帧或不支持的像素格式
+- 编码器不可用
+- 客户端请求超出限制
+- 网络中断或会话超时
 
-**Android 客户端架构**
+推荐错误处理原则。
 
-Flutter 端按 4 层组织。
+- 环境前置失败尽量在 `doctor` 或 `probe` 阶段暴露。
+- `DisplayProvisioning` 失败时必须回滚已创建的 `evdi` 资源。
+- 错误消息必须同时包含机器可读的错误码和简洁的人类可读描述。
+- 对于特权相关失败，日志中必须明确提示“应使用系统级特权服务运行”。
 
-1. Presentation
+**诊断与可观测性**
 
-- `HomePage`
-- `ConnectPage`
-- `FullscreenPage`
-- `SettingsPage`
-- `DiagnosticsPage`
+服务端日志字段至少应包含。
 
-2. Application
+- `event`
+- `client_id`
+- `display_name`
+- `session_id`
+- `backend`
+- `codec`
+- `resolution`
+- `frame_rate`
+- `result`
+- `error_code`
 
-- `SessionController`: 会话状态、连接流程、重连和页面状态汇总。
-- `SettingsController`: 用户设置与“请求值/实际值”展示。
-- `DiagnosticsController`: 最近错误、连接方式、统计汇总。
+`doctor` 建议输出检查项。
 
-3. Data
+- `libevdi` 版本与可调用状态
+- `evdi` 模块是否已加载
+- 是否具备特权运行条件
+- Arch Linux 前置条件提醒
+- 已选或可选显示后端
+- 后端是否支持按需创建/销毁
+- 后端是否支持稳定命名
+- 可用编码器与编码模式
+- `adb` 是否存在且可调用
+- 监听地址、端口可用性
+- 当前配置文件路径与解析结果
 
-- `TransportRepository`: WebSocket 建连、消息收发、心跳。
-- `PreferencesRepository`: 最近连接地址、稳定 ID、本地设置持久化。
-- `DecoderRepository`: 与原生插件交互。
+客户端诊断页至少展示。
 
-4. Platform
+- 当前连接方式
+- 当前显示参数
+- 当前串流参数
+- 当前解码方式
+- 最近错误摘要
+- 最近一次降级原因
 
-- Android 原生插件负责 `MediaCodec`、`Surface/Texture` 和沉浸式显示桥接。
+**Android 客户端与原生插件分层**
 
-状态管理建议使用 `flutter_riverpod`。原因是它足够轻量，便于表达连接状态机、页面状态与异步副作用。
+Flutter 和原生解码层的职责边界如下。
 
-**Android 原生解码插件职责**
+Flutter 层负责。
 
-- 创建并持有 `SurfaceTexture` 或 `SurfaceView` 绑定目标。
-- 封装 `MediaCodec` 初始化、喂帧、flush、重建和释放。
-- 向 Flutter 暴露最小 API。
+- 页面导航
+- 连接状态展示
+- 设置页与诊断页
+- 协议消息发送与状态管理
+- 最近地址与稳定 ID 持久化
 
-建议 API 形态。
+Android 原生层负责。
+
+- `MediaCodec` 初始化与重配置
+- 解码输入队列
+- Surface / Texture 输出
+- 解码异常反馈
+
+向 Flutter 暴露最小 API。
 
 ```text
 createRenderer() -> textureId
@@ -499,9 +627,10 @@ releaseSession()
 
 服务端推荐路径。
 
-- 配置: `~/.config/tab-screen/config.toml`
-- 用户态 state: `~/.local/state/tab-screen/`
-- 运行日志: 交给 `journalctl --user`，不额外设计文件日志为默认路径。
+- 配置: `/etc/tab-screen/config.toml`
+- state: `/var/lib/tab-screen/`
+- runtime: `/run/tab-screen/`
+- 运行日志: 交给系统服务日志查看链路，不额外设计文件日志为默认路径。
 
 客户端持久化项。
 
@@ -511,130 +640,48 @@ releaseSession()
 - 用户设置页中可持久化的覆盖偏好
 - 最近错误摘要
 
-**诊断与可观测性**
+**支持矩阵策略**
 
-服务端日志字段至少应包含。
+Phase 1 之后的支持矩阵口径如下。
 
-- `event`
-- `client_id`
-- `display_name`
-- `session_id`
-- `backend`
-- `codec`
-- `resolution`
-- `frame_rate`
-- `result`
-- `error_code`
+- 已验证后端路径: `evdi`
+- 已验证系统: `Arch Linux`
+- 已验证桌面环境: `niri`
+- 已验证显示协议环境: `Wayland`
+- 未承诺范围:
+  - 所有 Wayland compositor 全支持
+  - X11/Xorg 专门路径
+  - 多输出同时驱动
+  - 非 `evdi` 后端作为主路径
 
-`doctor` 建议输出检查项。
+后续如扩展矩阵，必须在 `docs/implementation-status.md` 和验证文档中同步记录新增环境与结果。
 
-- 当前是否处于 Wayland 图形会话。
-- 已选或可选显示后端。
-- 后端是否支持按需创建/销毁。
-- 后端是否支持稳定命名。
-- 可用编码器与编码模式。
-- `adb` 是否存在且可调用。
-- 监听地址、端口可用性。
-- 当前配置文件路径与解析结果。
+**阶段口径**
 
-客户端诊断页至少展示。
+当前阶段执行口径如下。
 
-- 连接方式。
-- 实际生效分辨率/帧率/编码格式。
-- 解码方式。
-- 估算延迟。
-- 最近错误。
-- 当前服务器地址。
+- Phase 1 结论已确认: 主显示后端为 `evdi + libevdi`
+- Phase 2 开始前，不再讨论回到 `systemd --user` 作为主部署模型
+- Phase 2 应直接基于当前 `evdi` 创建/抓帧路径接入编码与 WebSocket 最小闭环
+- 后续若发现系统级特权服务模型与实际部署不符，必须先更新文档再改代码
 
-**安全架构**
+**明确延期到 Post-MVP 的内容**
 
-MVP 不默认要求链路加密，但必须支持鉴权。
+- `HEVC` 正式支持
+- 多 compositor 扩展
+- QUIC/UDP 媒体通道
+- 多客户端/多副屏
+- 音频、输入、剪贴板、文件传输
+- HDR、10-bit、AV1
+- 高级 cursor 分离与脏区优化
+- `evdi` 之外的显示后端优选策略
 
-- LAN 模式默认开启 token 校验。
-- USB 模式可允许沿用相同 token 逻辑，也可通过配置放宽。
-- 协议消息中不得回显完整 token。
-- 日志中不得打印敏感凭据。
-- 协议结构中预留 `encryption` / `pairing_mode` 字段，为后续扩展加密或配对流程做兼容。
+**最终执行口径**
 
-**失败处理策略**
+后续 Agent 按本架构推进时，应遵守以下硬规则。
 
-必须统一错误码，并在协议、日志和 UI 中使用同一语义。推荐分类。
-
-- `auth_failed`
-- `protocol_version_mismatch`
-- `invalid_config`
-- `missing_device_screen_params`
-- `display_backend_unavailable`
-- `display_creation_failed`
-- `encoder_unavailable`
-- `decoder_unavailable`
-- `parameter_out_of_range`
-- `session_busy`
-- `network_disconnected`
-- `session_timeout`
-- `internal_error`
-
-错误处理规则。
-
-- 可恢复错误优先通过 `error` + `session_state` 回传。
-- 不可恢复错误必须结束会话并清理资源。
-- 若显示器已创建但编码器失败，必须立即销毁显示器，避免桌面残留孤儿输出。
-
-**测试策略**
-
-编码与验证必须同步推进，测试不是收尾工作，而是每个模块交付定义的一部分。
-
-- 新增功能或修复缺陷时，必须在同一改动中补上与行为匹配的必要测试，用来验证正确性并防止回归。
-- 测试覆盖至少要触达关键成功路径、重要边界条件和相关失败路径，而不是只验证“能跑通一次”。
-- 若当前阶段确实无法自动化验证，必须明确记录原因，并补充最小可执行的人工验证步骤与实际结果。
-
-服务端。
-
-- `protocol/config/server-core` 以单元测试为主。
-- `display-backend/encoder/transport` 以集成测试和 probe 测试为主。
-- 协商逻辑必须覆盖“遵循服务器偏好”“客户端覆盖”“超限降级”“拒绝请求”四类用例。
-
-客户端。
-
-- Flutter 控制器和存储逻辑使用单元测试。
-- 协议收发与状态迁移使用 widget/integration test。
-- `MediaCodec` 相关行为通过真机手测和最小自动化验证组合完成。
-
-端到端。
-
-- 最小闭环: 固定参数 LAN 连接并显示画面。
-- 协商闭环: 修改设置后服务端返回新的实际值。
-- 生命周期闭环: 连接时创建显示器，断开时销毁显示器。
-- 稳定命名闭环: 同一客户端重连后显示器名称不变。
-
-**Phase 0/1 必须验证的开放决策**
-
-以下内容必须在正式展开编码前确认，不能靠后期补救。
-
-- 选定的 `DisplayBackend` 主后端是否真的支持按连接创建/销毁。
-- 主后端是否允许稳定命名或可通过持久映射实现等价效果。
-- 该后端对应的捕获链路能否稳定输出给编码器。
-- 选定的 Rust 编码栈是否能稳定产出适合 MediaCodec 的 H.264 Annex B。
-- Flutter 原生插件喂入访问单元的性能是否足够支撑目标分辨率和帧率。
-
-若其中任何一项失败，优先调整后端选型，不要继续堆叠 UI 或配置功能。
-
-**不在 v1 解决的问题**
-
-- 多客户端同时观看。
-- 多块平板同时作为多个副屏。
-- 音频、输入回传、剪贴板、文件传输。
-- QUIC/UDP 媒体通道。
-- HDR、10-bit、AV1。
-- 面向所有 Wayland compositor 的通用兼容层。
-
-**实施基线**
-
-后续 Agent 在编码时应将本架构视为默认基线。
-
-- 不要把“代码已写完但未测试”视为模块完成。
-- 不要先做复杂 UI，再回头验证显示后端。
-- 不要在 MVP 阶段引入第二套传输协议。
-- 不要把显示参数和串流参数混成一套结构。
-- 不要在未定义稳定身份持久化前实现显示器创建逻辑。
-- 不要绕过 `DisplayBackend` 和 `EncoderBackend` 抽象直接把具体实现写死在 `server-core`。
+1. `evdi` 已是当前主显示后端，不要在 Phase 2 之前重新发散到其他主路径。
+2. 任意涉及部署模型的实现与文档，都应以系统级特权服务为默认口径，而不是 `systemd --user`。
+3. 稳定显示身份依赖逻辑映射与稳定 EDID，不要把 `cardX` 编号当作稳定身份。
+4. 任何功能实现或缺陷修复，只要缺少必要测试或明确验证结果，就不要标记为完成。
+5. 任何后续偏离本文档的实现，必须先更新文档并在 `docs/implementation-status.md` 记录原因。
